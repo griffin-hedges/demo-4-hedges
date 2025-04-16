@@ -22,6 +22,10 @@ class SellCoinsRequest(BaseModel):
 api_router = APIRouter()
 logger = logging.getLogger(__name__)
 
+@api_router.get("/")
+def read_root():
+    return {"message": "API is running"}
+
 @api_router.post("/wallet/generate")
 async def generate_wallet():
     try:
