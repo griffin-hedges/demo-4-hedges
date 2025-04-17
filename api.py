@@ -8,7 +8,7 @@ class BuyCoinsRequest(BaseModel):
     amount: int
     asa_id: int
     address: str
-    price: int
+    price: float
 
 class GetBalanceRequest(BaseModel):
     address: str
