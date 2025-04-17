@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from typing import Dict, Optional
-from utils import create_and_fund_wallet, transfer_asa, get_asa_balance, burn_tokens
+from utils import create_and_fund_wallet, transfer_asa, get_asa_balance, burn_tokens, get_asa_transactions
 import logging
 from pydantic import BaseModel
 
@@ -76,3 +76,17 @@ async def get_balance(address: str, asa_id: int):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+
+@api_router.get("/coins/transactions")
+async def get_transactions(address: str):
+    try:
+        transactions = get_asa_transactions(address)
+        return {
+            "message": f"Successfully retrieved transactions for {address}",
+            "address": address,
+            "transactions": transactions
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
