@@ -18,7 +18,7 @@ class SellCoinsRequest(BaseModel):
     address: str
     asa_id: int
     amount: int
-
+    price: float
 api_router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ async def generate_wallet():
 async def sell_coins(request: SellCoinsRequest):
     try:
         # Add sell coins logic here
-        burn_tokens(request.address, request.asa_id, request.amount)
+        burn_tokens(request.address, request.asa_id, request.amount, request.price)
         return {"message": f"Successfully sold {request.amount} {request.asa_id}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

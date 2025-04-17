@@ -3,7 +3,8 @@ from algosdk import account, mnemonic # type: ignore
 from algosdk.transaction import PaymentTxn, AssetTransferTxn, wait_for_confirmation, AssetFreezeTxn # type: ignore
 from dotenv import load_dotenv # type: ignore
 import os
-
+from algosdk.v2client import indexer  # Add this import
+import base64
 def get_recipient_address(mnemonic_phrase: str) -> str:
     # Get private key from mnemonic
     private_key = mnemonic.to_private_key(mnemonic_phrase)
@@ -191,7 +192,7 @@ def unfreeze_tokens(
     wait_for_confirmation(algod_client, txid)
     print(f"Tokens for {target_address} are now unfrozen.")
 
-def burn_tokens(sender_address, asset_id, amount):
+def burn_tokens(sender_address, asset_id, amount, price):
     ALGOD_ADDRESS = 'https://testnet-api.algonode.cloud'
     ALGOD_TOKEN = ''
     algod_client = algod.AlgodClient(ALGOD_TOKEN, ALGOD_ADDRESS)
@@ -205,13 +206,17 @@ def burn_tokens(sender_address, asset_id, amount):
     reserve_address = account.address_from_private_key(reserve_private_key)
     print('Reserve Address', reserve_address)
 
+    # Create note with price info
+    note = f"sold *{asset_id}* from user *{sender_address}* at *{price}*".encode()
+
     burn_txn = AssetTransferTxn(
         sender=reserve_address,  # Clawback address
         sp=params,
         receiver=reserve_address,  # Reserve address to receive tokens
         amt=amount,
         index=asset_id,
-        revocation_target=sender_address  # Address to clawback from
+        revocation_target=sender_address,  # Address to clawback from
+        note=note
     )
     signed_txn = burn_txn.sign(reserve_private_key)
     txid = algod_client.send_transaction(signed_txn)
@@ -220,3 +225,55 @@ def burn_tokens(sender_address, asset_id, amount):
     wait_for_confirmation(algod_client, txid)
     print(f"Burn confirmed: {amount} tokens removed.")
         
+def get_asa_transactions(address):
+    ALGOD_ADDRESS = 'https://testnet-api.algonode.cloud'
+    ALGOD_TOKEN = ''
+    INDEXER_ADDRESS = 'https://testnet-idx.algonode.cloud'
+    
+    indexer_client = indexer.IndexerClient(ALGOD_TOKEN, INDEXER_ADDRESS)
+    
+    # List of ASA IDs to check
+    asa_ids = [737489627, 737496803, 737496822, 737496823]
+    
+    # Dictionary to store transactions for each ASA
+    asa_transactions = {}
+    
+    for asa_id in asa_ids:
+        # Get transactions for the address and current ASA
+        response = indexer_client.search_transactions(
+            address=address,
+            asset_id=asa_id
+        )
+
+        transactions = []
+        if 'transactions' in response:
+            for txn in response['transactions']:
+                if 'asset-transfer-transaction' in txn:
+                    asa_amount = txn['asset-transfer-transaction']['amount']
+                    sender = txn['sender']
+                    receiver = txn['asset-transfer-transaction']['receiver']
+                    
+                    # Determine if the transaction is a buy or sell
+                    transaction_type = "buy" if receiver == address else "sell"
+                    
+                    # Get and decode the note if present
+                    price = None
+                    if 'note' in txn:
+                        try:
+                            note = base64.b64decode(txn['note']).decode('utf-8')
+                            # Assuming price is stored in the note
+                            price = float(note.split('*')[-2])
+                        except:
+                            continue
+                            
+                    if price is not None:
+                        transactions.append({
+                            'amount': asa_amount,
+                            'price': price,
+                            'txn_id': txn['id'],
+                            'type': transaction_type
+                        })
+                        
+        asa_transactions[asa_id] = transactions
+        
+    return asa_transactions
